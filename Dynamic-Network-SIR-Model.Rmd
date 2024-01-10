@@ -1,0 +1,124 @@
+---
+title: "Dynamic Network (SIR) Model in infectious disease"
+author: "Joshua Edefo"
+date: "2024-01-10"
+email: "edefojoshua2000@yahoo.com"
+output: github_document
+---
+Library
+```{r a, message=FALSE}
+
+library(EpiModel) 
+
+```
+
+Network and its simulation
+
+```{r b}
+
+nw <- network.initialize(n=1100, directed = FALSE)
+
+# set node attribute
+
+nw<- set.vertex.attribute(nw, "risk", rep (0:1, each = 550))
+
+plot (nw)
+
+# color the node by "risk" attribute
+myrisk<-get.vertex.attribute(nw, "risk")
+
+myrisk
+
+plot(nw, vertex.col=myrisk+4)
+
+# Network model estimation and diagnostics
+# The network formation and dissolution formulas specify how persons in the form and dissolve partnership over time
+
+# predictors of formation
+formation <- ~edges + nodefactor ("risk") + nodematch("risk") + concurrent
+
+# target statistics represent the expected values of the network staistics for each crossectional slice of the dynamic network time series 
+target.stats <- c(300, 350, 225, 110)
+
+#dissolution
+# specify a mean duration of 70 time steps thus the dissolution rate will be 1/40 = 0.025 which is 2.5% risk of dissolving
+coef.diss <- dissolution_coefs(dissolution=~offset(edges), 
+                               duration = 40)
+
+coef.diss
+# The output from this function indicates both an adjusted and crude coefficient which are equivalent i.e closed network but open network differs
+
+# The nearest function calls for the estimation routines to estimate the coefficients for the
+# formation and dissolution model
+##inputs are the base network
+##the formation formula
+##target statistics
+## the dissolution coefficients
+est1 <- netest(nw, formation, target.stats, coef.diss)
+
+# After the model fit completes, it is crucial to diagnose the output
+
+## 2 types of diagnostic: static an d dynamic but we will use dynamic diagnostic
+# simulates from the model fit object returned by netest, we simulate from the model 100 times over 100 time steps
+
+dx<-netdx(est1, nsim=10, nsteps=100)
+dx
+
+plot (dx)
+
+
+# Lets plot duration and dissolution
+
+plot(dx, type = "duration")
+abline(v=200, col=2)
+plot (dx, type = "dissolution")
+
+# For initial conditions, we use the i.num to set the initial number infected at the start, this will use a starting prevalence of 7% which is 0.07 *1100 = 77
+#initial number of recovered is 2
+init <- init.net(i.num = 20, r.num = 2)
+
+
+
+
+# The generic SIR model requires  4 paramaters
+
+# 1. ds which is 0.05 which is infection probability
+# 2. dI which is 0.03 which is recovery rate
+# 3. Act rate - that is contact rate within active partnership
+
+
+# in an SIR model,
+# they are set using the function param.net
+param <- param.net(inf.prob = 0.1,rec.rate = 0.03, act.rate = 7)
+
+# the value used for the recovery rate implies that the avaerage duration of infection is 100 steps
+
+control<- control.net (type = "SIR", nsteps = 100, nsims = 10, epi.by = "risk", recovery.FUN = NULL)
+
+sim1 <- netsim(est1, param, init, control)
+
+summary (sim1, at = 100)
+
+```
+
+Output
+
+```{r c}
+# the output may be extracted using the  as.data function
+
+mySimData = as.data.frame(sim1)
+
+# lets plot
+
+
+plot(sim1, type= "network", at = 1, sims = "mean",
+     col.status = TRUE, main = "Prevalence at t1")
+
+plot(sim1, type = "network", at = 100, sims= "mean",
+     col.status = TRUE, main = "Prevalence at t100")
+```
+
+Information sesion
+```{r d}
+sessionInfo()
+```
